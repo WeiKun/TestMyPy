@@ -114,3 +114,15 @@ intV2 = 1                   #自动标注
 intV2 = ''                  #报错，因为已经自动标注了
 intV2 = ''  # type: str     #报错依旧
 
+#object代表一个通用的obj，能支持一些通用的操作（其实就是没啥操作）
+def foo(obj1, obj2, obj3):
+    # type: (object, Any, Any) -> None
+    print obj1 + 5  # 报错: can't add 'object' and 'int'
+    assert isinstance(obj1, int) #assert isinstance可以推断类型
+    print obj1 + 5  # OK: type of 'o' is 'int' here
+    assert isinstance(obj2, str) #assert isinstance可以推断类型
+    print obj2 + 5  # 报错
+    assert obj3 is ''
+    print obj3 + 5  # assert 单独也可以推断类型
+
+
