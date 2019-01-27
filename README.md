@@ -374,8 +374,8 @@ testFuncB(None) #报警
 - 能完美检查出test_mod_1里定义但是test_mod_2使用的function、class、decorator
 - 如果跨了目录进行import并且检查，那么可以选择对MYPYPATH进行修改，例如testfolder2/test_mod_2.py里import了testfolder1/test_mod_1.py
 ```shell
-gzweikun@VM-23-26-debian:~/LearnTest/TestMyPy/testfolder2$ export MYPYPATH=~/LearnTest/TestMyPy/testfolder1:$MYPYPATH
-gzweikun@VM-23-26-debian:~/LearnTest/TestMyPy/testfolder2$ mypy --py2 test_mod_2.py                                  
+~/TestMyPy/testfolder2$ export MYPYPATH=~/TestMyPy/testfolder1:$MYPYPATH
+~/TestMyPy/testfolder2$ mypy --py2 test_mod_2.py 
 test_mod_2.py:9: error: Argument 1 to "functionA" has incompatible type "str"; expected "int"
 test_mod_2.py:11: error: Argument 1 to "functionA" of "Base" has incompatible type "str"; expected "int"
 test_mod_2.py:18: error: Argument 1 to "func" has incompatible type "str"; expected "int"
@@ -384,9 +384,92 @@ test_mod_2.py:18: error: Argument 1 to "func" has incompatible type "str"; expec
 ## 高级进阶用法
 待补充
 
-## 性能测试
+## 性能
 
 小文件上能明显感觉到卡顿，但是没有大项目，所以无法验证具体性能指标
 
+
 ## 对大系统的使用想法
 
+- 写一个main文件，然后将用到的公共模块加入到MYPYPATH
+- 由于对于赋值操作的自动标注，因此理论上我们只需要标注函数即可
+- 标注时可以选择自底向上，从基础的公共模块标注起，但也不必要全部标注完了再标注上层模块，按功能划分，用到多少标注多少就好了
+- 但是由于赋值语句的自动推导标注不是Union的，所以有时候我们需要将可能存在多个类型的属性手动标注
+- 由于上一条规则的存在，所以代码规范可能会变成加函数只能在class的最后面加起，否则新加函数对用到的属性都需要关心下是否需要重新标注
+
+- 由于标注只在检查时生效，对运行时最多是cast这几个可能会变成多一次空函数调用，开销不大
+
+## [神器](https://github.com/dropbox/pyannotate.git)pyannotate
+有个[神器](https://github.com/dropbox/pyannotate.git)pyannotate，可以在运行期分析数据帮忙加标注
+```python
+from gcd import main
+from pyannotate_runtime import collect_types
+
+if __name__ == '__main__':
+    collect_types.init_types_collection()
+    with collect_types.collect():
+        main()
+    collect_types.dump_stats('type_info.json')
+```
+其中gcd.py:
+```python
+def main():
+    print(gcd(15, 10))
+    print(gcd(45, 12))
+
+def gcd(a, b):
+    while b:
+        a, b = b, a%b
+    return a
+```
+直接运行
+```shell
+/pyannotate/example$ python driver.py 
+5
+3
+```
+这个时候目录下生成文件type_info.json
+```
+[
+    {
+        "type_comments": [
+            "() -> None"
+        ], 
+        "path": "gcd.py", 
+        "line": 1, 
+        "samples": 1, 
+        "func_name": "main"
+    }, 
+    {
+        "type_comments": [
+            "(int, int) -> int"
+        ], 
+        "path": "gcd.py", 
+        "line": 5, 
+        "samples": 2, 
+        "func_name": "gcd"
+    }
+]
+```
+运行
+```
+pyannotate/example$ pyannotate -w gcd.py
+Generating grammar tables from /usr/lib/python2.7/lib2to3/PatternGrammar.txt
+Refactored gcd.py
+--- gcd.py      (original)
++++ gcd.py      (refactored)
+@@ -1,8 +1,10 @@
+ def main():
++    # type: () -> None
+     print(gcd(15, 10))
+     print(gcd(45, 12))
+ 
+ def gcd(a, b):
++    # type: (int, int) -> int
+     while b:
+         a, b = b, a%b
+     return a
+Files that were modified:
+gcd.py
+```
+这时候就完成标注了
