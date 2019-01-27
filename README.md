@@ -12,6 +12,8 @@ https://github.com/python/mypy/blob/master/README.md
 ## 使用
 mypy --py2 xxx.py
 
+也可以对目录执行，此时会对目录下所有py文件执行一遍，而且目录并不要求是python的模块(就是不需要有__init__.py)
+mypy --py2 TestMyPy
 ## 普通用例介绍
 
 根据[官方用例](https://mypy.readthedocs.io/en/latest/cheat_sheet.html)进行验证跟扩展尝试
@@ -382,7 +384,60 @@ test_mod_2.py:18: error: Argument 1 to "func" has incompatible type "str"; expec
 ```
 
 ## 高级进阶用法
-待补充
+
+### 配置文件
+
+可以通过编辑检查时的配置文件，来达到复杂的检查定制性要求，例如通过配置test.ini（如果命名为mypy.ini，执行时不需要指定--config-file=）
+
+```
+# Global options:
+
+[mypy]
+python_version = 2.7
+warn_return_any = True
+
+# Per-module options:
+
+[mypy-NoMod]
+ignore_missing_imports = True
+```
+可以达到默认是使用py2.7并且忽略对NoMod的import报错
+```
+~/LearnTest/TestMyPy$ mypy --py2 test_config
+test_config/test_function.py:3: error: Cannot find module named 'NoMod'
+test_config/test_function.py:3: note: See https://mypy.readthedocs.io/en/latest/running_mypy.html#missing-imports
+test_config/test_function.py:9: error: Incompatible types in assignment (expression has type "str", variable has type "int")
+~/LearnTest/TestMyPy$ mypy  --config-file=test.ini test_config
+test_config/test_function.py:9: error: Incompatible types in assignment (expression has type "str", variable has type "int")
+```
+具体的配置字段在
+https://mypy.readthedocs.io/en/latest/config_file.html#config-precedence
+
+### 在Daemon执行检查
+
+除了可以直接运行mypy指令执行检查之外，还可以通过运行一个Daemon进程，然后不断向进程推送需要检查的模块，这样由于一直在内存缓存着之前检查的数据，后续文件检查的执行速度会加快。（用例在test_dmypy）
+
+在test_dmypy目录下，第一次通过
+
+```
+dmypy run -- --follow-imports=error  test_function.py 
+```
+启动Daemon进程后，会执行一次对test_function.py的检查，然后再敲一次
+
+```
+dmypy check test_function.py 
+```
+会执行同样的检查，但是很明显会比上次快很多。
+
+为了方便，需要写mypy.ini来配置检查参数（尤其是指定py版本）
+
+另外执行目录下会有一个.dmypy.json，记录了进程信息。
+
+```
+{"pid": 26036, "connection_name": "/tmp/tmpqu4h1q4d/dmypy.sock"}
+```
+详细在
+https://mypy.readthedocs.io/en/latest/mypy_daemon.html
 
 ## 性能
 
